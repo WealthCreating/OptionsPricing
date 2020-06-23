@@ -8,13 +8,11 @@ import numpy as np
 import pandas as pd
 
 
-# Throughout this class, monte-Carlo simulations have been combined with Antithetic Sampling to reduce error convergence.
-
 # In[ ]:
 
 
 """Class that provides methods to generate stock price paths according to different processes.
-Euler method is implemented to simulate continuous processes thanks to discretised versions."""
+Euler method is implemented to simulate continuous processes thanks to discretinised versions."""
 
 class GenerateStockPricePaths():
     
@@ -94,6 +92,8 @@ class GenerateStockPricePaths():
         self.__T = T
         
     """Generate paths using Black-Scholes without jumps.
+       Monte-Carlo simulation combined with Antithetic sampling
+       to reduce error convergence.
        Returns: stock price paths (DF)."""
     
     def BSPaths(self):
@@ -101,12 +101,13 @@ class GenerateStockPricePaths():
         logS0 = np.log(self.S0)
         epsMatrix1 = np.random.normal(size=(int(self.N/2),self.steps))
         epsMatrix2 = -epsMatrix1
-        epsMatrix = np.concatenate((epsMatrix1, epsMatrix2), axis=0)
-        dlogSMatrix = (self.rf-self.vol**2/2)*dt+self.vol*np.sqrt(dt)*epsMatrix
+        dlogSMatrix1 = (self.rf-self.vol**2/2)*dt+self.vol*np.sqrt(dt)*epsMatrix1
+        dlogSMatrix2 = (self.rf-self.vol**2/2)*dt+self.vol*np.sqrt(dt)*epsMatrix2
         pathsMatrix = np.zeros(shape=(self.N,self.steps))
         pathsMatrix[:,0] = logS0
         for i in range(1, self.steps):
-            pathsMatrix[:,i] = pathsMatrix[:,i-1]+dlogSMatrix[:,i]
+            pathsMatrix[:int(self.N/2),i] = pathsMatrix[:int(self.N/2),i-1]+dlogSMatrix1[:,i]
+            pathsMatrix[int(self.N/2):,i] = pathsMatrix[int(self.N/2):,i-1]+dlogSMatrix2[:,i]
         pathsMatrix = np.exp(pathsMatrix)
         return pd.DataFrame(pathsMatrix)
     
@@ -152,12 +153,8 @@ class GenerateStockPricePaths():
         volPaths[:,0] = vol0
         logS = np.zeros(shape=(self.N,self.steps))
         logS[:,0] = np.log(self.S0)
-        eps1A = twoBrownianMotionCorrelated(rho,int(self.N/2),self.steps)[0]
-        eps1B = -eps1A
-        eps1 = np.concatenate((eps1A,eps1B), axis = 0)
-        eps2A = twoBrownianMotionCorrelated(rho,int(self.N/2),self.steps)[1]
-        eps2B = -eps2A
-        eps2 = np.concatenate((eps2A,eps2B), axis = 0)
+        eps1 = twoBrownianMotionCorrelated(rho,self.N,self.steps)[0]
+        eps2 = twoBrownianMotionCorrelated(rho,self.N,self.steps)[1]
         for i in range(1,self.steps):
             volPaths[:,i-1] = np.abs(volPaths[:,i-1])
             volPaths[:,i] = (volPaths[:,i-1])+kappa*(eta-volPaths[:,i-1])*dt+theta*np.sqrt(np.abs(volPaths[:,i-1]))*eps1[:,i]
@@ -192,12 +189,8 @@ class GenerateStockPricePaths():
     def MertonJDPaths(self, mu, delta, l):
         dt = self.T/self.steps
         logS0 = np.log(self.S0)
-        epsMatrix1A = np.random.normal(size=(int(self.N/2),self.steps))
-        epsMatrix1B = -epsMatrix1A
-        epsMatrix1 = np.concatenate((epsMatrix1A, epsMatrix1B), axis=0)
-        epsMatrix2A = np.random.normal(size=(int(self.N/2),self.steps))
-        epsMatrix2B = -epsMatrix2A
-        epsMatrix2 = np.concatenate((epsMatrix2A, epsMatrix2B), axis=0)
+        epsMatrix1 = np.random.normal(size=(self.N,self.steps))
+        epsMatrix2 = np.random.normal(size=(self.N,self.steps))
         jumpPart = np.exp(mu+delta*epsMatrix2-1)*np.random.poisson(l*dt,size=(self.N,self.steps))
         dlogSMatrix = (self.rf-self.vol**2/2)*dt+self.vol*np.sqrt(dt)*epsMatrix1
         pathsMatrix = np.zeros(shape=(self.N,self.steps))
@@ -241,15 +234,9 @@ class GenerateStockPricePaths():
         volPaths[:,0] = vol0
         logS = np.zeros(shape=(self.N,self.steps))
         logS[:,0] = np.log(self.S0)
-        eps1A = twoBrownianMotionCorrelated(rho,int(self.N/2),self.steps)[0]
-        eps1B = -eps1A
-        eps1 = np.concatenate((eps1A,eps1B), axis = 0)
-        eps2A = twoBrownianMotionCorrelated(rho,int(self.N/2),self.steps)[1]
-        eps2B = -eps2A
-        eps2 = np.concatenate((eps2A,eps2B), axis = 0)
-        eps3A = np.random.normal(size=(int(self.N/2),self.steps))
-        eps3B = -eps3A
-        eps3 = np.concatenate((eps3A,eps3B), axis = 0)
+        eps1 = twoBrownianMotionCorrelated(rho,self.N,self.steps)[0]
+        eps2 = twoBrownianMotionCorrelated(rho,self.N,self.steps)[1]
+        eps3 = np.random.normal(size=(self.N,self.steps))
         jumpPart = np.exp(mu+delta*eps3-1)*np.random.poisson(l*dt,size=(self.N,self.steps))
         for i in range(1,self.steps):
             volPaths[:,i-1] = np.abs(volPaths[:,i-1])
